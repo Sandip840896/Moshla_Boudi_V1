@@ -20,7 +20,7 @@
     <!-- Firebase SDK (Modular) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-        import { getDatabase, ref, set, push, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
+        import { getDatabase, ref, set, push, onValue, update, remove, get, enableLogging } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyBzYjpF14j4c8AaMZoSHswOw1I8_gnCm_o",
@@ -32,19 +32,25 @@
             appId: "1:618655209291:web:b04b31450fce4ce1957ace"
         };
         
-        const app = initializeApp(firebaseConfig);
-        const database = getDatabase(app);
-        
-        window.db = database;
-        window.dbRef = ref;
-        window.dbSet = set;
-        window.dbPush = push;
-        window.dbOnValue = onValue;
-        window.dbUpdate = update;
-        window.dbRemove = remove;
-        window.dbGet = get;
-        
-        console.log('Firebase initialized successfully!');
+        try {
+            const app = initializeApp(firebaseConfig);
+            const database = getDatabase(app);
+            
+            window.db = database;
+            window.dbRef = ref;
+            window.dbSet = set;
+            window.dbPush = push;
+            window.dbOnValue = onValue;
+            window.dbUpdate = update;
+            window.dbRemove = remove;
+            window.dbGet = get;
+            window.firebaseInitialized = true;
+            
+            console.log('Firebase initialized successfully!');
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+            window.firebaseInitialized = false;
+        }
     </script>
     
     <style>
@@ -170,9 +176,29 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
+        
+        .offline-mode {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #fbbf24;
+            color: #92400e;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 9999;
+            display: none;
+        }
+        
+        .offline-mode.show { display: block; }
     </style>
 </head>
 <body class="text-gray-800">
+    <!-- Offline Mode Indicator -->
+    <div id="offlineIndicator" class="offline-mode">
+        ⚠️ Offline Mode - Data will not sync
+    </div>
 
     <!-- Login Screen -->
     <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600">
@@ -273,6 +299,14 @@
             <!-- Dashboard View -->
             <div id="view-dashboard" class="view-section animate-fade-in">
                 <h2 class="text-3xl font-bold text-white mb-6">Dashboard Overview</h2>
+                
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="mb-4 p-3 bg-green-100 text-green-800 rounded-lg hidden">
+                    ✅ Connected to Firebase - Data syncing enabled
+                </div>
+                <div id="offlineStatus" class="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg hidden">
+                    ⚠️ Offline Mode - Data stored locally only
+                </div>
                 
                 <!-- Stats Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -787,6 +821,14 @@
                             <button onclick="app.saveStockThreshold()" class="px-4 py-2 bg-white text-purple-600 rounded font-semibold">Save</button>
                         </div>
                     </div>
+                    
+                    <div class="glass-panel p-6 rounded-xl bg-gradient-to-br from-red-500 to-pink-600 text-white">
+                        <h3 class="text-xl font-bold mb-4">Firebase Status</h3>
+                        <p class="text-sm opacity-90 mb-2" id="firebaseStatusText">Checking...</p>
+                        <button onclick="app.testFirebaseConnection()" class="w-full py-2 bg-white text-red-600 rounded-lg font-semibold hover:bg-gray-100 transition-all">
+                            Test Connection
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -909,6 +951,7 @@
             cart: [],
             currentBill: null,
             lowStockThreshold: 10,
+            isOnline: false,
             
             defaultProducts: {
                 "MOSHLA GHAR": {
@@ -964,7 +1007,42 @@
             
             init() {
                 this.setCurrentDate();
+                this.checkFirebaseStatus();
                 this.loadFromFirebase();
+            },
+            
+            checkFirebaseStatus() {
+                if (typeof window.firebaseInitialized === 'undefined' || !window.firebaseInitialized) {
+                    this.isOnline = false;
+                    document.getElementById('offlineIndicator').classList.add('show');
+                    document.getElementById('firebaseStatusText').textContent = '❌ Not Connected - Working in Offline Mode';
+                    this.showToast('Firebase not connected. Working in offline mode.', 'warning');
+                } else {
+                    this.testFirebaseConnection();
+                }
+            },
+            
+            async testFirebaseConnection() {
+                try {
+                    if (typeof window.db === 'undefined') throw new Error('Database not initialized');
+                    
+                    const testRef = window.dbRef(window.db, '.info/connected');
+                    const snapshot = await window.dbGet(testRef);
+                    
+                    this.isOnline = true;
+                    document.getElementById('offlineIndicator').classList.remove('show');
+                    document.getElementById('connectionStatus').classList.remove('hidden');
+                    document.getElementById('offlineStatus').classList.add('hidden');
+                    document.getElementById('firebaseStatusText').textContent = '✅ Connected - Data syncing enabled';
+                    this.showToast('Firebase connected successfully!', 'success');
+                } catch (error) {
+                    this.isOnline = false;
+                    document.getElementById('offlineIndicator').classList.add('show');
+                    document.getElementById('connectionStatus').classList.add('hidden');
+                    document.getElementById('offlineStatus').classList.remove('hidden');
+                    document.getElementById('firebaseStatusText').textContent = '❌ Connection Failed - ' + error.message;
+                    this.showToast('Firebase connection failed. Working offline.', 'warning');
+                }
             },
             
             setCurrentDate() {
@@ -1250,8 +1328,11 @@
                     timestamp: new Date().toISOString()
                 };
                 
-                // Save individual sales records and update stock
-                const savePromises = this.cart.map(async item => {
+                // Save to local arrays first (always works)
+                this.billsData.unshift(bill);
+                
+                // Save individual sales records
+                this.cart.forEach(item => {
                     const sale = {
                         id: Date.now() + Math.random(),
                         billId: bill.id,
@@ -1270,75 +1351,73 @@
                         customerPhone: customerPhone,
                         timestamp: new Date().toISOString()
                     };
-                    
                     this.salesData.unshift(sale);
                     
-                    // Update stock
+                    // Update stock locally
                     if(this.productsData[item.company][item.category][item.productIdx]) {
                         this.productsData[item.company][item.category][item.productIdx].stock -= item.quantity;
                     }
-                    
-                    if(typeof window.db !== 'undefined') {
-                        await window.dbSet(window.dbRef(window.db, `sales/${sale.id}`), sale);
-                    }
                 });
                 
-                // Save customer if new
-                if(customerPhone && !this.customersData.find(c => c.phone === customerPhone)) {
-                    const newCustomer = {
-                        id: Date.now(),
-                        name: customerName,
-                        phone: customerPhone,
-                        address: customerAddress,
-                        createdAt: new Date().toISOString()
-                    };
-                    this.customersData.push(newCustomer);
-                    
-                    if(typeof window.db !== 'undefined') {
-                        await window.dbSet(window.dbRef(window.db, `customers/${newCustomer.id}`), newCustomer);
-                    }
-                }
-                
-                // Update existing customer total
-                const existingCustomer = this.customersData.find(c => c.phone === customerPhone);
-                if(existingCustomer) {
-                    existingCustomer.totalOrders = (existingCustomer.totalOrders || 0) + 1;
-                    existingCustomer.totalSpent = (existingCustomer.totalSpent || 0) + totals.finalTotal;
-                    
-                    if(typeof window.db !== 'undefined') {
-                        await window.dbUpdate(window.dbRef(window.db, `customers/${existingCustomer.id}`), {
-                            totalOrders: existingCustomer.totalOrders,
-                            totalSpent: existingCustomer.totalSpent
-                        });
-                    }
-                }
-                
-                try {
-                    await Promise.all(savePromises);
-                    this.billsData.unshift(bill);
-                    
-                    if(typeof window.db !== 'undefined') {
+                // Try to save to Firebase if online
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        // Save bill
                         await window.dbSet(window.dbRef(window.db, `bills/${bill.id}`), bill);
+                        
+                        // Save sales
+                        for (let sale of this.salesData.filter(s => s.billId === bill.id)) {
+                            await window.dbSet(window.dbRef(window.db, `sales/${sale.id}`), sale);
+                        }
+                        
+                        // Update products
                         await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
+                        
+                        // Save customer
+                        if(customerPhone && !this.customersData.find(c => c.phone === customerPhone)) {
+                            const newCustomer = {
+                                id: Date.now(),
+                                name: customerName,
+                                phone: customerPhone,
+                                address: customerAddress,
+                                createdAt: new Date().toISOString(),
+                                totalOrders: 1,
+                                totalSpent: totals.finalTotal
+                            };
+                            this.customersData.push(newCustomer);
+                            await window.dbSet(window.dbRef(window.db, `customers/${newCustomer.id}`), newCustomer);
+                        } else if (customerPhone) {
+                            const existingCustomer = this.customersData.find(c => c.phone === customerPhone);
+                            if(existingCustomer) {
+                                existingCustomer.totalOrders = (existingCustomer.totalOrders || 0) + 1;
+                                existingCustomer.totalSpent = (existingCustomer.totalSpent || 0) + totals.finalTotal;
+                                await window.dbUpdate(window.dbRef(window.db, `customers/${existingCustomer.id}`), {
+                                    totalOrders: existingCustomer.totalOrders,
+                                    totalSpent: existingCustomer.totalSpent
+                                });
+                            }
+                        }
+                        
+                        this.showToast(`Bill ${billNo} saved to cloud!`, 'success');
+                    } catch (error) {
+                        console.error('Firebase save error:', error);
+                        this.showToast('Bill saved locally. Cloud sync failed.', 'warning');
                     }
-                    
-                    // Change button color to indicate success
-                    const saveBtn = document.getElementById('saveBillBtn');
-                    saveBtn.classList.add('btn-saved');
-                    saveBtn.textContent = '✓ Bill Saved Successfully';
-                    
-                    this.showToast(`Bill ${billNo} saved with ${this.cart.length} items!`, 'success');
-                    this.currentBill = bill;
-                    
-                    // Show invoice preview
-                    setTimeout(() => {
-                        this.showInvoice(bill);
-                    }, 500);
-                    
-                } catch(err) {
-                    console.error('Error saving bill:', err);
-                    this.showToast('Error saving bill', 'error');
+                } else {
+                    this.showToast(`Bill ${billNo} saved locally (Offline mode)`, 'success');
                 }
+                
+                // Change button color to indicate success
+                const saveBtn = document.getElementById('saveBillBtn');
+                saveBtn.classList.add('btn-saved');
+                saveBtn.textContent = '✓ Bill Saved Successfully';
+                
+                this.currentBill = bill;
+                
+                // Show invoice preview
+                setTimeout(() => {
+                    this.showInvoice(bill);
+                }, 500);
             },
             
             showInvoice(bill) {
@@ -1472,38 +1551,45 @@
             },
             
             async loadFromFirebase() {
-                if(typeof window.db === 'undefined') {
-                    this.productsData = JSON.parse(JSON.stringify(this.defaultProducts));
+                // Always load default products first
+                this.productsData = JSON.parse(JSON.stringify(this.defaultProducts));
+                
+                if (typeof window.db === 'undefined' || !this.isOnline) {
+                    this.updateDashboard();
                     return;
                 }
                 
                 try {
+                    // Load products
                     const prodSnapshot = await window.dbGet(window.dbRef(window.db, 'products'));
                     if(prodSnapshot.exists()) {
                         this.productsData = prodSnapshot.val();
                     } else {
-                        this.productsData = JSON.parse(JSON.stringify(this.defaultProducts));
                         await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
                     }
                     
+                    // Load sales
                     const salesSnapshot = await window.dbGet(window.dbRef(window.db, 'sales'));
                     if(salesSnapshot.exists()) {
                         const salesObj = salesSnapshot.val();
                         this.salesData = Object.values(salesObj);
                     }
                     
+                    // Load bills
                     const billsSnapshot = await window.dbGet(window.dbRef(window.db, 'bills'));
                     if(billsSnapshot.exists()) {
                         const billsObj = billsSnapshot.val();
                         this.billsData = Object.values(billsObj);
                     }
                     
+                    // Load customers
                     const custSnapshot = await window.dbGet(window.dbRef(window.db, 'customers'));
                     if(custSnapshot.exists()) {
                         const custObj = custSnapshot.val();
                         this.customersData = Object.values(custObj);
                     }
                     
+                    // Load settings
                     const settingsSnapshot = await window.dbGet(window.dbRef(window.db, 'settings'));
                     if(settingsSnapshot.exists()) {
                         const settings = settingsSnapshot.val();
@@ -1513,18 +1599,23 @@
                     
                     this.updateDashboard();
                 } catch(e) {
-                    console.error('Firebase error:', e);
-                    this.productsData = JSON.parse(JSON.stringify(this.defaultProducts));
+                    console.error('Firebase load error:', e);
+                    this.showToast('Using local data - Firebase unavailable', 'warning');
+                    this.updateDashboard();
                 }
             },
             
             async saveToFirebase() {
-                if(typeof window.db !== 'undefined') {
-                    try {
-                        await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
-                    } catch(e) {
-                        console.error('Save error:', e);
-                    }
+                if (!this.isOnline || typeof window.db === 'undefined') {
+                    return false;
+                }
+                
+                try {
+                    await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
+                    return true;
+                } catch(e) {
+                    console.error('Save error:', e);
+                    return false;
                 }
             },
             
@@ -1773,19 +1864,21 @@
                     });
                     
                     // Delete related sales
-                    const salesToDelete = this.salesData.filter(s => s.billId === id);
-                    salesToDelete.forEach(s => {
-                        if(typeof window.db !== 'undefined') {
-                            window.dbRemove(window.dbRef(window.db, `sales/${s.id}`));
-                        }
-                    });
-                    
                     this.salesData = this.salesData.filter(s => s.billId !== id);
                     this.billsData = this.billsData.filter(b => b.id !== id);
                     
-                    if(typeof window.db !== 'undefined') {
-                        await window.dbRemove(window.dbRef(window.db, `bills/${id}`));
-                        await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
+                    // Try to update Firebase
+                    if (this.isOnline && typeof window.db !== 'undefined') {
+                        try {
+                            const salesToDelete = this.salesData.filter(s => s.billId === id);
+                            for (let s of salesToDelete) {
+                                await window.dbRemove(window.dbRef(window.db, `sales/${s.id}`));
+                            }
+                            await window.dbRemove(window.dbRef(window.db, `bills/${id}`));
+                            await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
+                        } catch (e) {
+                            console.error('Firebase delete error:', e);
+                        }
                     }
                     
                     this.loadSalesHistory();
@@ -1924,7 +2017,11 @@
                     this.productsData[company][category].push({name, rate, stock, margin});
                 }
                 
-                await this.saveToFirebase();
+                // Save to Firebase if online
+                if (this.isOnline) {
+                    await this.saveToFirebase();
+                }
+                
                 this.closeProductModal();
                 this.renderProducts();
                 this.showToast('Product saved!', 'success');
@@ -1950,7 +2047,11 @@
                 if(this.productsData[company][category].length === 0) {
                     delete this.productsData[company][category];
                 }
-                await this.saveToFirebase();
+                
+                if (this.isOnline) {
+                    await this.saveToFirebase();
+                }
+                
                 this.renderProducts();
                 this.showToast('Product deleted', 'success');
             },
@@ -2010,8 +2111,12 @@
                 
                 this.customersData.push(customer);
                 
-                if(typeof window.db !== 'undefined') {
-                    await window.dbSet(window.dbRef(window.db, `customers/${customer.id}`), customer);
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        await window.dbSet(window.dbRef(window.db, `customers/${customer.id}`), customer);
+                    } catch (e) {
+                        console.error('Customer save error:', e);
+                    }
                 }
                 
                 this.closeCustomerModal();
@@ -2036,8 +2141,12 @@
                 
                 this.customersData = this.customersData.filter(c => c.id != id);
                 
-                if(typeof window.db !== 'undefined') {
-                    await window.dbRemove(window.dbRef(window.db, `customers/${id}`));
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        await window.dbRemove(window.dbRef(window.db, `customers/${id}`));
+                    } catch (e) {
+                        console.error('Customer delete error:', e);
+                    }
                 }
                 
                 this.renderCustomers();
@@ -2112,10 +2221,14 @@
             async saveStockThreshold() {
                 this.lowStockThreshold = parseInt(document.getElementById('lowStockThreshold').value) || 10;
                 
-                if(typeof window.db !== 'undefined') {
-                    await window.dbSet(window.dbRef(window.db, 'settings'), {
-                        lowStockThreshold: this.lowStockThreshold
-                    });
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        await window.dbSet(window.dbRef(window.db, 'settings'), {
+                            lowStockThreshold: this.lowStockThreshold
+                        });
+                    } catch (e) {
+                        console.error('Settings save error:', e);
+                    }
                 }
                 
                 this.showToast('Stock threshold saved!', 'success');
@@ -2140,6 +2253,14 @@
                 a.click();
                 
                 this.showToast('Backup downloaded!', 'success');
+            },
+            
+            openUserModal() {
+                this.showToast('User management - Coming soon!', 'warning');
+            },
+            
+            openSettingsModal() {
+                this.showToast('Settings - Coming soon!', 'warning');
             },
             
             showToast(message, type = 'success') {
