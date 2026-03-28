@@ -1022,38 +1022,38 @@
                 }
             },
             
-            async testFirebaseConnection() {
-    try {
-        if (typeof window.db === 'undefined') throw new Error('Database not initialized');
-        
-        // Test by actually writing a small test value
-        const testRef = window.dbRef(window.db, 'connectionTest/' + Date.now());
-        await window.dbSet(testRef, { timestamp: new Date().toISOString(), test: true });
-        
-        // If write succeeds, we're online
-        this.isOnline = true;
-        document.getElementById('offlineIndicator').classList.remove('show');
-        document.getElementById('connectionStatus').classList.remove('hidden');
-        document.getElementById('offlineStatus').classList.add('hidden');
-        document.getElementById('firebaseStatusText').textContent = '✅ Connected - Data syncing enabled';
-        this.showToast('Firebase connected successfully!', 'success');
-        
-        // Clean up test data
-        await window.dbRemove(testRef);
-        
-        // Reload data from Firebase
-        this.loadFromFirebase();
-        
-    } catch (error) {
-        console.error('Firebase test error:', error);
-        this.isOnline = false;
-        document.getElementById('offlineIndicator').classList.add('show');
-        document.getElementById('connectionStatus').classList.add('hidden');
-        document.getElementById('offlineStatus').classList.remove('hidden');
-        document.getElementById('firebaseStatusText').textContent = '❌ Connection Failed - ' + error.message;
-        this.showToast('Firebase connection failed. Working offline.', 'warning');
-    }
-}
+                        async testFirebaseConnection() {
+                try {
+                    if (typeof window.db === 'undefined') throw new Error('Database not initialized');
+                    
+                    // Test by actually writing a small test value
+                    const testRef = window.dbRef(window.db, 'connectionTest/' + Date.now());
+                    await window.dbSet(testRef, { timestamp: new Date().toISOString(), test: true });
+                    
+                    // If write succeeds, we're online
+                    this.isOnline = true;
+                    document.getElementById('offlineIndicator').classList.remove('show');
+                    document.getElementById('connectionStatus').classList.remove('hidden');
+                    document.getElementById('offlineStatus').classList.add('hidden');
+                    document.getElementById('firebaseStatusText').textContent = '✅ Connected - Data syncing enabled';
+                    this.showToast('Firebase connected successfully!', 'success');
+                    
+                    // Clean up test data
+                    await window.dbRemove(testRef);
+                    
+                    // Reload data from Firebase
+                    this.loadFromFirebase();
+                    
+                } catch (error) {
+                    console.error('Firebase test error:', error);
+                    this.isOnline = false;
+                    document.getElementById('offlineIndicator').classList.add('show');
+                    document.getElementById('connectionStatus').classList.add('hidden');
+                    document.getElementById('offlineStatus').classList.remove('hidden');
+                    document.getElementById('firebaseStatusText').textContent = '❌ Connection Failed - ' + error.message;
+                    this.showToast('Firebase connection failed. Working offline.', 'warning');
+                }
+            }
             
             setCurrentDate() {
                 const today = new Date().toISOString().split('T')[0];
