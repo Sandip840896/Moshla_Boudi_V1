@@ -1022,7 +1022,7 @@
                 }
             },
             
-                        async testFirebaseConnection() {
+            async testFirebaseConnection() {
                 try {
                     if (typeof window.db === 'undefined') throw new Error('Database not initialized');
                     
@@ -1053,7 +1053,7 @@
                     document.getElementById('firebaseStatusText').textContent = '❌ Connection Failed - ' + error.message;
                     this.showToast('Firebase connection failed. Working offline.', 'warning');
                 }
-            }
+            },
             
             setCurrentDate() {
                 const today = new Date().toISOString().split('T')[0];
