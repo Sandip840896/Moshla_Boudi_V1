@@ -192,6 +192,12 @@
         }
         
         .offline-mode.show { display: block; }
+
+        .permission-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body class="text-gray-800">
@@ -242,6 +248,7 @@
             <div class="p-6 border-b border-gray-200">
                 <h2 class="text-2xl font-bold gradient-text">Sanjukta</h2>
                 <p class="text-xs text-gray-500 mt-1">Sales Management</p>
+                <p class="text-xs text-purple-600 mt-1" id="currentUserDisplay">Welcome!</p>
             </div>
             
             <nav class="p-4 space-y-2 flex-1">
@@ -789,6 +796,7 @@
                 <h2 class="text-3xl font-bold text-white mb-6">Admin Panel</h2>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- User Management -->
                     <div class="glass-panel p-6 rounded-xl admin-card">
                         <h3 class="text-xl font-bold mb-4">User Management</h3>
                         <p class="text-sm opacity-90 mb-4">Manage system users and permissions</p>
@@ -797,6 +805,7 @@
                         </button>
                     </div>
                     
+                    <!-- Data Backup -->
                     <div class="glass-panel p-6 rounded-xl admin-card">
                         <h3 class="text-xl font-bold mb-4">Data Backup</h3>
                         <p class="text-sm opacity-90 mb-4">Export all data for backup</p>
@@ -805,6 +814,7 @@
                         </button>
                     </div>
                     
+                    <!-- System Settings -->
                     <div class="glass-panel p-6 rounded-xl admin-card">
                         <h3 class="text-xl font-bold mb-4">System Settings</h3>
                         <p class="text-sm opacity-90 mb-4">Configure system parameters</p>
@@ -813,6 +823,7 @@
                         </button>
                     </div>
                     
+                    <!-- Stock Alert Settings -->
                     <div class="glass-panel p-6 rounded-xl admin-card">
                         <h3 class="text-xl font-bold mb-4">Stock Alert Settings</h3>
                         <p class="text-sm opacity-90 mb-4">Set low stock threshold</p>
@@ -822,11 +833,22 @@
                         </div>
                     </div>
                     
+                    <!-- Firebase Status -->
                     <div class="glass-panel p-6 rounded-xl bg-gradient-to-br from-red-500 to-pink-600 text-white">
                         <h3 class="text-xl font-bold mb-4">Firebase Status</h3>
                         <p class="text-sm opacity-90 mb-2" id="firebaseStatusText">Checking...</p>
                         <button onclick="app.testFirebaseConnection()" class="w-full py-2 bg-white text-red-600 rounded-lg font-semibold hover:bg-gray-100 transition-all">
                             Test Connection
+                        </button>
+                    </div>
+                    
+                    <!-- Current User Info -->
+                    <div class="glass-panel p-6 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+                        <h3 class="text-xl font-bold mb-4">Current User</h3>
+                        <p class="text-sm opacity-90 mb-2" id="adminCurrentUser">Not logged in</p>
+                        <p class="text-sm opacity-90 mb-2" id="adminUserRole">Role: -</p>
+                        <button onclick="app.showCurrentUserPermissions()" class="w-full py-2 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-all">
+                            View Permissions
                         </button>
                     </div>
                 </div>
@@ -904,6 +926,144 @@
         </div>
     </div>
 
+    <!-- User Management Modal -->
+    <div id="userModal" class="modal">
+        <div class="bg-white rounded-xl max-w-4xl w-full mx-4 my-8 overflow-hidden max-h-[90vh] overflow-y-auto">
+            <div class="p-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white flex justify-between items-center">
+                <h3 class="text-xl font-bold">User Management</h3>
+                <button onclick="app.closeUserModal()" class="text-white hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <div class="mb-6">
+                    <button onclick="app.openAddUserModal()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        <span>Add New User</span>
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-sm font-medium text-gray-600">Name</th>
+                                <th class="px-4 py-3 text-sm font-medium text-gray-600">Email</th>
+                                <th class="px-4 py-3 text-sm font-medium text-gray-600">Role</th>
+                                <th class="px-4 py-3 text-sm font-medium text-gray-600">Status</th>
+                                <th class="px-4 py-3 text-sm font-medium text-gray-600">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body" class="divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit User Modal -->
+    <div id="addUserModal" class="modal">
+        <div class="glass-panel p-6 rounded-xl max-w-lg w-full mx-4 my-auto">
+            <h3 class="text-xl font-bold mb-4" id="addUserModalTitle">Add New User</h3>
+            <form id="userForm" onsubmit="app.saveUser(event)" class="space-y-4">
+                <input type="hidden" id="editUserId">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input type="text" id="userFullName" required class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" id="userEmail" required class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input type="password" id="userPassword" required class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <select id="userRole" required class="w-full px-3 py-2 rounded border border-gray-300">
+                        <option value="SUPER_ADMIN">Super Admin</option>
+                        <option value="MANAGER">Manager</option>
+                        <option value="OPERATOR">Operator</option>
+                        <option value="VIEWER">Viewer</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
+                    <div class="space-y-2 bg-gray-50 p-3 rounded">
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="permDashboard" class="permission-checkbox" checked>
+                            <span class="text-sm">Dashboard Access</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="permSales" class="permission-checkbox" checked>
+                            <span class="text-sm">Sales Entry & History</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="permProducts" class="permission-checkbox" checked>
+                            <span class="text-sm">Product Management</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="permCustomers" class="permission-checkbox" checked>
+                            <span class="text-sm">Customer Management</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="permReports" class="permission-checkbox" checked>
+                            <span class="text-sm">Reports Access</span>
+                        </label>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" id="permAdmin" class="permission-checkbox">
+                            <span class="text-sm">Admin Panel Access</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex space-x-3 mt-6">
+                    <button type="submit" class="flex-1 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">Save User</button>
+                    <button type="button" onclick="app.closeAddUserModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="glass-panel p-6 rounded-xl max-w-lg w-full mx-4 my-auto">
+            <h3 class="text-xl font-bold mb-4">System Settings</h3>
+            <form id="settingsForm" onsubmit="app.saveSettings(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                    <input type="text" id="settingCompanyName" value="Sanjukta Sales" class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Moshla Ghar Address</label>
+                    <textarea id="settingMoshlaAddress" rows="2" class="w-full px-3 py-2 rounded border border-gray-300">122 Harisabha Math, Kolkata - 700084</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MADOXG Address</label>
+                    <textarea id="settingMadoxgAddress" rows="2" class="w-full px-3 py-2 rounded border border-gray-300">122 Harisabha Math, Kolkata - 700084</textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Moshla Ghar WhatsApp</label>
+                    <input type="text" id="settingMoshlaPhone" value="8961888961" class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">MADOXG WhatsApp</label>
+                    <input type="text" id="settingMadoxgPhone" value="7890011609" class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Currency Symbol</label>
+                    <input type="text" id="settingCurrency" value="₹" class="w-full px-3 py-2 rounded border border-gray-300">
+                </div>
+                <div class="flex space-x-3 mt-6">
+                    <button type="submit" class="flex-1 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">Save Settings</button>
+                    <button type="button" onclick="app.closeSettingsModal()" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Invoice Modal -->
     <div id="invoiceModal" class="modal">
         <div class="bg-white rounded-xl max-w-4xl w-full mx-4 my-8 overflow-hidden">
@@ -947,11 +1107,21 @@
             productsData: {},
             customersData: [],
             billsData: [],
+            usersData: [],
             charts: {},
             cart: [],
             currentBill: null,
             lowStockThreshold: 10,
             isOnline: false,
+            currentUser: null,
+            systemSettings: {
+                companyName: 'Sanjukta Sales',
+                moshlaAddress: '122 Harisabha Math, Kolkata - 700084',
+                madoxgAddress: '122 Harisabha Math, Kolkata - 700084',
+                moshlaPhone: '8961888961',
+                madoxgPhone: '7890011609',
+                currency: '₹'
+            },
             
             defaultProducts: {
                 "MOSHLA GHAR": {
@@ -1005,6 +1175,26 @@
                 }
             },
             
+            defaultUsers: [
+                {
+                    id: 'admin1',
+                    name: 'Sanjukta',
+                    email: 'sanjukta@email.com',
+                    password: 'password',
+                    role: 'SUPER_ADMIN',
+                    permissions: {
+                        dashboard: true,
+                        sales: true,
+                        products: true,
+                        customers: true,
+                        reports: true,
+                        admin: true
+                    },
+                    active: true,
+                    createdAt: new Date().toISOString()
+                }
+            ],
+            
             init() {
                 this.setCurrentDate();
                 this.checkFirebaseStatus();
@@ -1018,7 +1208,12 @@
                     document.getElementById('firebaseStatusText').textContent = '❌ Not Connected - Working in Offline Mode';
                     this.showToast('Firebase not connected. Working in offline mode.', 'warning');
                 } else {
-                    this.testFirebaseConnection();
+                    // Don't test connection immediately, just assume online if initialized
+                    this.isOnline = true;
+                    document.getElementById('offlineIndicator').classList.remove('show');
+                    document.getElementById('connectionStatus').classList.remove('hidden');
+                    document.getElementById('offlineStatus').classList.add('hidden');
+                    document.getElementById('firebaseStatusText').textContent = '✅ Connected - Data syncing enabled';
                 }
             },
             
@@ -1026,11 +1221,9 @@
                 try {
                     if (typeof window.db === 'undefined') throw new Error('Database not initialized');
                     
-                    // Test by actually writing a small test value
                     const testRef = window.dbRef(window.db, 'connectionTest/' + Date.now());
                     await window.dbSet(testRef, { timestamp: new Date().toISOString(), test: true });
                     
-                    // If write succeeds, we're online
                     this.isOnline = true;
                     document.getElementById('offlineIndicator').classList.remove('show');
                     document.getElementById('connectionStatus').classList.remove('hidden');
@@ -1038,10 +1231,7 @@
                     document.getElementById('firebaseStatusText').textContent = '✅ Connected - Data syncing enabled';
                     this.showToast('Firebase connected successfully!', 'success');
                     
-                    // Clean up test data
                     await window.dbRemove(testRef);
-                    
-                    // Reload data from Firebase
                     this.loadFromFirebase();
                     
                 } catch (error) {
@@ -1050,21 +1240,29 @@
                     document.getElementById('offlineIndicator').classList.add('show');
                     document.getElementById('connectionStatus').classList.add('hidden');
                     document.getElementById('offlineStatus').classList.remove('hidden');
-                    document.getElementById('firebaseStatusText').textContent = '❌ Connection Failed - ' + error.message;
+                    document.getElementById('firebaseStatusText').textContent = '❌ Connection Failed';
                     this.showToast('Firebase connection failed. Working offline.', 'warning');
                 }
             },
             
             setCurrentDate() {
-                const today = new Date().toISOString().split('T')[0];
+                const today = this.getLocalDate();
                 document.getElementById('saleDate').value = today;
                 document.getElementById('filterDate').value = today;
                 document.getElementById('reportStartDate').value = today;
                 document.getElementById('reportEndDate').value = today;
             },
             
+            getLocalDate() {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            },
+            
             getCurrentDate() {
-                return new Date().toISOString().split('T')[0];
+                return this.getLocalDate();
             },
             
             generateBillNumber() {
@@ -1080,21 +1278,58 @@
                 const email = document.getElementById('loginEmail').value;
                 const pass = document.getElementById('loginPassword').value;
                 
-                if(email && pass) {
+                const user = this.usersData.find(u => u.email === email && u.password === pass && u.active);
+                
+                if(user) {
+                    this.currentUser = user;
                     document.getElementById('loginScreen').classList.add('hidden');
                     document.getElementById('mainApp').classList.remove('hidden');
+                    document.getElementById('currentUserDisplay').textContent = `Welcome, ${user.name}!`;
+                    document.getElementById('adminCurrentUser').textContent = user.name;
+                    document.getElementById('adminUserRole').textContent = `Role: ${user.role}`;
+                    
+                    this.applyUserPermissions(user);
                     this.init();
-                    this.showToast('Welcome Sanjukta! System by Sandip ✓', 'success');
+                    this.showToast(`Welcome ${user.name}! System by Sandip ✓`, 'success');
                 } else {
-                    this.showToast('Please enter email and password', 'error');
+                    this.showToast('Invalid email or password', 'error');
+                }
+            },
+            
+            applyUserPermissions(user) {
+                const perms = user.permissions || {};
+                
+                // Hide/show navigation based on permissions
+                const navItems = {
+                    'nav-dashboard': perms.dashboard,
+                    'nav-sales-entry': perms.sales,
+                    'nav-sales-history': perms.sales,
+                    'nav-products': perms.products,
+                    'nav-customers': perms.customers,
+                    'nav-reports': perms.reports,
+                    'nav-admin': perms.admin
+                };
+                
+                for (const [id, allowed] of Object.entries(navItems)) {
+                    const el = document.getElementById(id);
+                    if(el) {
+                        el.style.display = allowed ? 'flex' : 'none';
+                    }
                 }
             },
             
             logout() {
+                this.currentUser = null;
                 location.reload();
             },
             
             navigate(view) {
+                // Check permission
+                if (!this.checkPermission(view)) {
+                    this.showToast('You do not have permission to access this section', 'error');
+                    return;
+                }
+                
                 document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
                 document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
                 
@@ -1108,6 +1343,7 @@
                 if(view === 'products') this.renderProducts();
                 if(view === 'customers') this.renderCustomers();
                 if(view === 'reports') this.generateReport();
+                if(view === 'admin') this.updateAdminPanel();
                 
                 if(view === 'sales-entry') {
                     document.getElementById('billNo').value = this.generateBillNumber();
@@ -1116,6 +1352,23 @@
                     document.getElementById('saveBillBtn').classList.remove('btn-saved');
                     document.getElementById('saveBillBtn').textContent = 'Save Bill';
                 }
+            },
+            
+            checkPermission(view) {
+                if (!this.currentUser) return false;
+                
+                const perms = this.currentUser.permissions || {};
+                const permissionMap = {
+                    'dashboard': perms.dashboard,
+                    'sales-entry': perms.sales,
+                    'sales-history': perms.sales,
+                    'products': perms.products,
+                    'customers': perms.customers,
+                    'reports': perms.reports,
+                    'admin': perms.admin
+                };
+                
+                return permissionMap[view] !== false; // Default to true if not specified
             },
             
             // Cart Functions
@@ -1157,7 +1410,6 @@
                 if(company && category && productIdx !== '') {
                     const prod = this.productsData[company][category][productIdx];
                     
-                    // Check stock
                     if(prod.stock < qty) {
                         this.showToast(`Only ${prod.stock} items available in stock!`, 'error');
                         document.getElementById('cartQty').value = prod.stock;
@@ -1319,7 +1571,6 @@
                 
                 const totals = this.calculateFinalTotal();
                 
-                // Create bill record
                 const bill = {
                     id: Date.now().toString(),
                     date: date,
@@ -1335,13 +1586,12 @@
                     discount: totals.discount,
                     finalTotal: totals.finalTotal,
                     remarks: remarks,
+                    createdBy: this.currentUser ? this.currentUser.name : 'Unknown',
                     timestamp: new Date().toISOString()
                 };
                 
-                // Save to local arrays first (always works)
                 this.billsData.unshift(bill);
                 
-                // Save individual sales records
                 this.cart.forEach(item => {
                     const sale = {
                         id: Date.now() + Math.random(),
@@ -1359,31 +1609,28 @@
                         profit: item.amount * item.margin,
                         customerName: customerName,
                         customerPhone: customerPhone,
+                        createdBy: this.currentUser ? this.currentUser.name : 'Unknown',
                         timestamp: new Date().toISOString()
                     };
                     this.salesData.unshift(sale);
                     
-                    // Update stock locally
                     if(this.productsData[item.company][item.category][item.productIdx]) {
                         this.productsData[item.company][item.category][item.productIdx].stock -= item.quantity;
                     }
                 });
                 
-                // Try to save to Firebase if online
+                // Save to Firebase if online
                 if (this.isOnline && typeof window.db !== 'undefined') {
                     try {
-                        // Save bill
                         await window.dbSet(window.dbRef(window.db, `bills/${bill.id}`), bill);
                         
-                        // Save sales
                         for (let sale of this.salesData.filter(s => s.billId === bill.id)) {
-                            await window.dbSet(window.dbRef(window.db, `sales/${sale.id}`), sale);
+                            const saleId = String(sale.id).replace('.', '_');
+                            await window.dbSet(window.dbRef(window.db, `sales/${saleId}`), sale);
                         }
                         
-                        // Update products
                         await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
                         
-                        // Save customer
                         if(customerPhone && !this.customersData.find(c => c.phone === customerPhone)) {
                             const newCustomer = {
                                 id: Date.now(),
@@ -1417,14 +1664,12 @@
                     this.showToast(`Bill ${billNo} saved locally (Offline mode)`, 'success');
                 }
                 
-                // Change button color to indicate success
                 const saveBtn = document.getElementById('saveBillBtn');
                 saveBtn.classList.add('btn-saved');
                 saveBtn.textContent = '✓ Bill Saved Successfully';
                 
                 this.currentBill = bill;
                 
-                // Show invoice preview
                 setTimeout(() => {
                     this.showInvoice(bill);
                 }, 500);
@@ -1433,8 +1678,8 @@
             showInvoice(bill) {
                 const company = bill.items[0]?.company || 'MOSHLA GHAR';
                 const address = company === 'MADOXG' 
-                    ? '122 Harisabha Math, Kolkata - 700084<br>WhatsApp: 7890011609'
-                    : '122 Harisabha Math, Kolkata - 700084<br>WhatsApp: 8961888961';
+                    ? `${this.systemSettings.madoxgAddress}<br>WhatsApp: ${this.systemSettings.madoxgPhone}`
+                    : `${this.systemSettings.moshlaAddress}<br>WhatsApp: ${this.systemSettings.moshlaPhone}`;
                 
                 const itemsHtml = bill.items.map(item => `
                     <tr>
@@ -1561,8 +1806,9 @@
             },
             
             async loadFromFirebase() {
-                // Always load default products first
+                // Always load default products and users first
                 this.productsData = JSON.parse(JSON.stringify(this.defaultProducts));
+                this.usersData = [...this.defaultUsers];
                 
                 if (typeof window.db === 'undefined' || !this.isOnline) {
                     this.updateDashboard();
@@ -1599,10 +1845,20 @@
                         this.customersData = Object.values(custObj);
                     }
                     
+                    // Load users
+                    const usersSnapshot = await window.dbGet(window.dbRef(window.db, 'users'));
+                    if(usersSnapshot.exists()) {
+                        const usersObj = usersSnapshot.val();
+                        this.usersData = Object.values(usersObj);
+                    } else {
+                        await window.dbSet(window.dbRef(window.db, 'users'), this.usersData);
+                    }
+                    
                     // Load settings
                     const settingsSnapshot = await window.dbGet(window.dbRef(window.db, 'settings'));
                     if(settingsSnapshot.exists()) {
                         const settings = settingsSnapshot.val();
+                        this.systemSettings = { ...this.systemSettings, ...settings };
                         this.lowStockThreshold = settings.lowStockThreshold || 10;
                         document.getElementById('lowStockThreshold').value = this.lowStockThreshold;
                     }
@@ -1631,6 +1887,8 @@
             
             updateDashboard() {
                 const today = this.getCurrentDate();
+                
+                // Filter today's sales using local date comparison
                 const todaySales = this.salesData.filter(s => s.date === today);
                 
                 const todayTotal = todaySales.reduce((sum, s) => sum + s.saleValue, 0);
@@ -1773,7 +2031,6 @@
             updateProductPerformance() {
                 const productStats = {};
                 
-                // Initialize all products with 0 sales
                 Object.entries(this.productsData).forEach(([company, categories]) => {
                     Object.entries(categories).forEach(([category, products]) => {
                         products.forEach(prod => {
@@ -1786,7 +2043,6 @@
                     });
                 });
                 
-                // Calculate sales
                 this.salesData.forEach(s => {
                     if(productStats[s.product]) {
                         productStats[s.product].sold += s.quantity;
@@ -1865,7 +2121,6 @@
                 
                 const bill = this.billsData.find(b => b.id === id);
                 if(bill) {
-                    // Restore stock
                     bill.items.forEach(item => {
                         if(this.productsData[item.company][item.category]) {
                             const prod = this.productsData[item.company][item.category].find(p => p.name === item.product);
@@ -1873,16 +2128,15 @@
                         }
                     });
                     
-                    // Delete related sales
                     this.salesData = this.salesData.filter(s => s.billId !== id);
                     this.billsData = this.billsData.filter(b => b.id !== id);
                     
-                    // Try to update Firebase
                     if (this.isOnline && typeof window.db !== 'undefined') {
                         try {
                             const salesToDelete = this.salesData.filter(s => s.billId === id);
                             for (let s of salesToDelete) {
-                                await window.dbRemove(window.dbRef(window.db, `sales/${s.id}`));
+                                const saleId = String(s.id).replace('.', '_');
+                                await window.dbRemove(window.dbRef(window.db, `sales/${saleId}`));
                             }
                             await window.dbRemove(window.dbRef(window.db, `bills/${id}`));
                             await window.dbSet(window.dbRef(window.db, 'products'), this.productsData);
@@ -2021,13 +2275,11 @@
                 
                 if(editId) {
                     const [editCompany, editCategory, editIdx] = editId.split('|');
-                    const oldProd = this.productsData[editCompany][editCategory][editIdx];
                     this.productsData[editCompany][editCategory][editIdx] = {name, rate, stock, margin};
                 } else {
                     this.productsData[company][category].push({name, rate, stock, margin});
                 }
                 
-                // Save to Firebase if online
                 if (this.isOnline) {
                     await this.saveToFirebase();
                 }
@@ -2208,7 +2460,7 @@
             
             quickReport(period) {
                 const today = new Date();
-                const formattedToday = today.toISOString().split('T')[0];
+                const formattedToday = this.getCurrentDate();
                 
                 let start, end;
                 
@@ -2216,7 +2468,7 @@
                     start = end = formattedToday;
                 } else if(period === 'week') {
                     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    start = weekAgo.toISOString().split('T')[0];
+                    start = this.formatDateLocal(weekAgo);
                     end = formattedToday;
                 } else if(period === 'month') {
                     start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
@@ -2228,12 +2480,20 @@
                 this.generateReport();
             },
             
+            formatDateLocal(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            },
+            
             async saveStockThreshold() {
                 this.lowStockThreshold = parseInt(document.getElementById('lowStockThreshold').value) || 10;
                 
                 if (this.isOnline && typeof window.db !== 'undefined') {
                     try {
                         await window.dbSet(window.dbRef(window.db, 'settings'), {
+                            ...this.systemSettings,
                             lowStockThreshold: this.lowStockThreshold
                         });
                     } catch (e) {
@@ -2251,6 +2511,8 @@
                     sales: this.salesData,
                     bills: this.billsData,
                     customers: this.customersData,
+                    users: this.usersData,
+                    settings: this.systemSettings,
                     exportDate: new Date().toISOString()
                 };
                 
@@ -2265,12 +2527,215 @@
                 this.showToast('Backup downloaded!', 'success');
             },
             
-            openUserModal() {
-                this.showToast('User management - Coming soon!', 'warning');
+            // User Management Functions
+            updateAdminPanel() {
+                this.renderUsersTable();
             },
             
+            openUserModal() {
+                document.getElementById('userModal').classList.add('show');
+                this.renderUsersTable();
+            },
+            
+            closeUserModal() {
+                document.getElementById('userModal').classList.remove('show');
+            },
+            
+            renderUsersTable() {
+                const tbody = document.getElementById('users-table-body');
+                tbody.innerHTML = this.usersData.map(u => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 text-sm font-medium">${u.name}</td>
+                        <td class="px-4 py-3 text-sm">${u.email}</td>
+                        <td class="px-4 py-3 text-sm"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">${u.role}</span></td>
+                        <td class="px-4 py-3 text-sm">
+                            <span class="px-2 py-1 ${u.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} rounded text-xs">
+                                ${u.active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-sm">
+                            <button onclick="app.editUser('${u.id}')" class="text-blue-600 hover:text-blue-800 mr-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="app.toggleUserStatus('${u.id}')" class="text-yellow-600 hover:text-yellow-800 mr-2" title="Toggle Status">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </button>
+                            <button onclick="app.deleteUser('${u.id}')" class="text-red-600 hover:text-red-800">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            },
+            
+            openAddUserModal() {
+                document.getElementById('addUserModal').classList.add('show');
+                document.getElementById('addUserModalTitle').textContent = 'Add New User';
+                document.getElementById('userForm').reset();
+                document.getElementById('editUserId').value = '';
+            },
+            
+            closeAddUserModal() {
+                document.getElementById('addUserModal').classList.remove('show');
+            },
+            
+            async saveUser(e) {
+                e.preventDefault();
+                
+                const id = document.getElementById('editUserId').value;
+                const user = {
+                    id: id || 'user_' + Date.now(),
+                    name: document.getElementById('userFullName').value,
+                    email: document.getElementById('userEmail').value,
+                    password: document.getElementById('userPassword').value,
+                    role: document.getElementById('userRole').value,
+                    permissions: {
+                        dashboard: document.getElementById('permDashboard').checked,
+                        sales: document.getElementById('permSales').checked,
+                        products: document.getElementById('permProducts').checked,
+                        customers: document.getElementById('permCustomers').checked,
+                        reports: document.getElementById('permReports').checked,
+                        admin: document.getElementById('permAdmin').checked
+                    },
+                    active: true,
+                    createdAt: new Date().toISOString()
+                };
+                
+                if(id) {
+                    const existing = this.usersData.find(u => u.id === id);
+                    if(existing) {
+                        user.createdAt = existing.createdAt;
+                        user.active = existing.active;
+                    }
+                    this.usersData = this.usersData.filter(u => u.id !== id);
+                }
+                
+                this.usersData.push(user);
+                
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        await window.dbSet(window.dbRef(window.db, `users/${user.id}`), user);
+                    } catch (e) {
+                        console.error('User save error:', e);
+                    }
+                }
+                
+                this.closeAddUserModal();
+                this.renderUsersTable();
+                this.showToast('User saved!', 'success');
+            },
+            
+            editUser(id) {
+                const u = this.usersData.find(user => user.id === id);
+                if(u) {
+                    document.getElementById('userFullName').value = u.name;
+                    document.getElementById('userEmail').value = u.email;
+                    document.getElementById('userPassword').value = u.password;
+                    document.getElementById('userRole').value = u.role;
+                    document.getElementById('editUserId').value = u.id;
+                    
+                    const perms = u.permissions || {};
+                    document.getElementById('permDashboard').checked = perms.dashboard !== false;
+                    document.getElementById('permSales').checked = perms.sales !== false;
+                    document.getElementById('permProducts').checked = perms.products !== false;
+                    document.getElementById('permCustomers').checked = perms.customers !== false;
+                    document.getElementById('permReports').checked = perms.reports !== false;
+                    document.getElementById('permAdmin').checked = perms.admin === true;
+                    
+                    document.getElementById('addUserModalTitle').textContent = 'Edit User';
+                    document.getElementById('addUserModal').classList.add('show');
+                }
+            },
+            
+            async toggleUserStatus(id) {
+                const user = this.usersData.find(u => u.id === id);
+                if(user) {
+                    user.active = !user.active;
+                    
+                    if (this.isOnline && typeof window.db !== 'undefined') {
+                        try {
+                            await window.dbUpdate(window.dbRef(window.db, `users/${id}`), { active: user.active });
+                        } catch (e) {
+                            console.error('User update error:', e);
+                        }
+                    }
+                    
+                    this.renderUsersTable();
+                    this.showToast(`User ${user.active ? 'activated' : 'deactivated'}`, 'success');
+                }
+            },
+            
+            async deleteUser(id) {
+                if(!confirm('Delete this user?')) return;
+                
+                this.usersData = this.usersData.filter(u => u.id !== id);
+                
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        await window.dbRemove(window.dbRef(window.db, `users/${id}`));
+                    } catch (e) {
+                        console.error('User delete error:', e);
+                    }
+                }
+                
+                this.renderUsersTable();
+                this.showToast('User deleted', 'success');
+            },
+            
+            showCurrentUserPermissions() {
+                if(!this.currentUser) return;
+                
+                const perms = this.currentUser.permissions || {};
+                let msg = `Your Permissions (${this.currentUser.role}):\n\n`;
+                msg += `✓ Dashboard: ${perms.dashboard ? 'Yes' : 'No'}\n`;
+                msg += `✓ Sales: ${perms.sales ? 'Yes' : 'No'}\n`;
+                msg += `✓ Products: ${perms.products ? 'Yes' : 'No'}\n`;
+                msg += `✓ Customers: ${perms.customers ? 'Yes' : 'No'}\n`;
+                msg += `✓ Reports: ${perms.reports ? 'Yes' : 'No'}\n`;
+                msg += `✓ Admin: ${perms.admin ? 'Yes' : 'No'}`;
+                
+                alert(msg);
+            },
+            
+            // Settings Functions
             openSettingsModal() {
-                this.showToast('Settings - Coming soon!', 'warning');
+                document.getElementById('settingCompanyName').value = this.systemSettings.companyName;
+                document.getElementById('settingMoshlaAddress').value = this.systemSettings.moshlaAddress;
+                document.getElementById('settingMadoxgAddress').value = this.systemSettings.madoxgAddress;
+                document.getElementById('settingMoshlaPhone').value = this.systemSettings.moshlaPhone;
+                document.getElementById('settingMadoxgPhone').value = this.systemSettings.madoxgPhone;
+                document.getElementById('settingCurrency').value = this.systemSettings.currency;
+                
+                document.getElementById('settingsModal').classList.add('show');
+            },
+            
+            closeSettingsModal() {
+                document.getElementById('settingsModal').classList.remove('show');
+            },
+            
+            async saveSettings(e) {
+                e.preventDefault();
+                
+                this.systemSettings = {
+                    companyName: document.getElementById('settingCompanyName').value,
+                    moshlaAddress: document.getElementById('settingMoshlaAddress').value,
+                    madoxgAddress: document.getElementById('settingMadoxgAddress').value,
+                    moshlaPhone: document.getElementById('settingMoshlaPhone').value,
+                    madoxgPhone: document.getElementById('settingMadoxgPhone').value,
+                    currency: document.getElementById('settingCurrency').value,
+                    lowStockThreshold: this.lowStockThreshold
+                };
+                
+                if (this.isOnline && typeof window.db !== 'undefined') {
+                    try {
+                        await window.dbSet(window.dbRef(window.db, 'settings'), this.systemSettings);
+                    } catch (e) {
+                        console.error('Settings save error:', e);
+                    }
+                }
+                
+                this.closeSettingsModal();
+                this.showToast('Settings saved!', 'success');
             },
             
             showToast(message, type = 'success') {
@@ -2292,6 +2757,18 @@
         
         document.getElementById('invoiceModal').addEventListener('click', (e) => {
             if(e.target === document.getElementById('invoiceModal')) app.closeInvoiceModal();
+        });
+        
+        document.getElementById('userModal').addEventListener('click', (e) => {
+            if(e.target === document.getElementById('userModal')) app.closeUserModal();
+        });
+        
+        document.getElementById('addUserModal').addEventListener('click', (e) => {
+            if(e.target === document.getElementById('addUserModal')) app.closeAddUserModal();
+        });
+        
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if(e.target === document.getElementById('settingsModal')) app.closeSettingsModal();
         });
     </script>
 </body>
