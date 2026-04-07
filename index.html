@@ -20,7 +20,7 @@
     <!-- Firebase SDK (Modular) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
-        import { getDatabase, ref, set, push, onValue, update, remove, get, enableLogging } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
+        import { getDatabase, ref, set, push, onValue, update, remove, get } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyBzYjpF14j4c8AaMZoSHswOw1I8_gnCm_o",
@@ -220,7 +220,7 @@
             </div>
             
             <div class="space-y-4">
-                <input type="email" id="loginEmail" placeholder="Email" value="sanjukta@email.com" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <input type="text" id="loginUsername" placeholder="Username" value="sanjukta" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
                 <input type="password" id="loginPassword" placeholder="Password" value="password" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500">
                 <button onclick="app.login()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all">
                     Login
@@ -974,8 +974,8 @@
                     <input type="text" id="userFullName" required class="w-full px-3 py-2 rounded border border-gray-300">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input type="email" id="userEmail" required class="w-full px-3 py-2 rounded border border-gray-300">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <input type="text" id="userUsername" required class="w-full px-3 py-2 rounded border border-gray-300">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
@@ -1179,7 +1179,7 @@
                 {
                     id: 'admin1',
                     name: 'Sanjukta',
-                    email: 'sanjukta@email.com',
+                    username: 'sanjukta',
                     password: 'password',
                     role: 'SUPER_ADMIN',
                     permissions: {
@@ -1208,7 +1208,6 @@
                     document.getElementById('firebaseStatusText').textContent = '❌ Not Connected - Working in Offline Mode';
                     this.showToast('Firebase not connected. Working in offline mode.', 'warning');
                 } else {
-                    // Don't test connection immediately, just assume online if initialized
                     this.isOnline = true;
                     document.getElementById('offlineIndicator').classList.remove('show');
                     document.getElementById('connectionStatus').classList.remove('hidden');
@@ -1275,10 +1274,15 @@
             },
             
             login() {
-                const email = document.getElementById('loginEmail').value;
+                const username = document.getElementById('loginUsername').value;
                 const pass = document.getElementById('loginPassword').value;
                 
-                const user = this.usersData.find(u => u.email === email && u.password === pass && u.active);
+                // FIXED: Check against username (not email) and match Firebase structure
+                const user = this.usersData.find(u => 
+                    (u.username === username || u.name === username) && 
+                    u.password === pass && 
+                    u.active !== false
+                );
                 
                 if(user) {
                     this.currentUser = user;
@@ -1292,14 +1296,13 @@
                     this.init();
                     this.showToast(`Welcome ${user.name}! System by Sandip ✓`, 'success');
                 } else {
-                    this.showToast('Invalid email or password', 'error');
+                    this.showToast('Invalid username or password', 'error');
                 }
             },
             
             applyUserPermissions(user) {
                 const perms = user.permissions || {};
                 
-                // Hide/show navigation based on permissions
                 const navItems = {
                     'nav-dashboard': perms.dashboard,
                     'nav-sales-entry': perms.sales,
@@ -1324,7 +1327,6 @@
             },
             
             navigate(view) {
-                // Check permission
                 if (!this.checkPermission(view)) {
                     this.showToast('You do not have permission to access this section', 'error');
                     return;
@@ -1368,7 +1370,7 @@
                     'admin': perms.admin
                 };
                 
-                return permissionMap[view] !== false; // Default to true if not specified
+                return permissionMap[view] !== false;
             },
             
             // Cart Functions
@@ -1619,7 +1621,6 @@
                     }
                 });
                 
-                // Save to Firebase if online
                 if (this.isOnline && typeof window.db !== 'undefined') {
                     try {
                         await window.dbSet(window.dbRef(window.db, `bills/${bill.id}`), bill);
@@ -1845,12 +1846,38 @@
                         this.customersData = Object.values(custObj);
                     }
                     
-                    // Load users
+                    // Load users - FIXED to handle both object and array structures
                     const usersSnapshot = await window.dbGet(window.dbRef(window.db, 'users'));
                     if(usersSnapshot.exists()) {
-                        const usersObj = usersSnapshot.val();
-                        this.usersData = Object.values(usersObj);
+                        const usersData = usersSnapshot.val();
+                        // Check if users is an object (Firebase format) or array
+                        if (usersData && typeof usersData === 'object') {
+                            // If it's an object with properties like name, password, etc. (single user)
+                            if (usersData.name && usersData.password) {
+                                this.usersData = [{
+                                    id: 'user_1',
+                                    name: usersData.name,
+                                    username: usersData.name.toLowerCase(),
+                                    password: usersData.password,
+                                    role: usersData.role || 'SUPER_ADMIN',
+                                    permissions: usersData.permissions || {
+                                        dashboard: true,
+                                        sales: true,
+                                        products: true,
+                                        customers: true,
+                                        reports: true,
+                                        admin: true
+                                    },
+                                    active: true,
+                                    createdAt: new Date().toISOString()
+                                }];
+                            } else {
+                                // It's an object with multiple users
+                                this.usersData = Object.values(usersData);
+                            }
+                        }
                     } else {
+                        // Save default users to Firebase
                         await window.dbSet(window.dbRef(window.db, 'users'), this.usersData);
                     }
                     
@@ -1888,7 +1915,6 @@
             updateDashboard() {
                 const today = this.getCurrentDate();
                 
-                // Filter today's sales using local date comparison
                 const todaySales = this.salesData.filter(s => s.date === today);
                 
                 const todayTotal = todaySales.reduce((sum, s) => sum + s.saleValue, 0);
@@ -1905,7 +1931,6 @@
                 document.getElementById('dash-madoxg-sales').textContent = '₹' + madoxgSales.toLocaleString();
                 document.getElementById('dash-total-customers').textContent = this.customersData.length;
                 
-                // Stock alerts
                 let lowStock = 0;
                 let outStock = 0;
                 Object.values(this.productsData).forEach(company => {
@@ -1924,7 +1949,6 @@
                     this.showToast(`Warning: ${outStock} products are out of stock!`, 'warning');
                 }
                 
-                // Recent sales
                 const recentBody = document.getElementById('recent-sales-body');
                 recentBody.innerHTML = '';
                 this.billsData.slice(0, 5).forEach(bill => {
@@ -1950,7 +1974,6 @@
                 if(this.charts.category) this.charts.category.destroy();
                 if(this.charts.product) this.charts.product.destroy();
                 
-                // Channel Chart
                 const channelData = {};
                 this.salesData.forEach(s => {
                     channelData[s.salePoint] = (channelData[s.salePoint] || 0) + s.saleValue;
@@ -1970,7 +1993,6 @@
                     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
                 });
                 
-                // Company Chart
                 const moshlaTotal = this.salesData.filter(s => s.company === 'MOSHLA GHAR').reduce((sum, s) => sum + s.saleValue, 0);
                 const madoxgTotal = this.salesData.filter(s => s.company === 'MADOXG').reduce((sum, s) => sum + s.saleValue, 0);
                 
@@ -1987,7 +2009,6 @@
                     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
                 });
                 
-                // Category Chart
                 const categoryData = {};
                 this.salesData.forEach(s => {
                     const key = `${s.company} - ${s.category}`;
@@ -2006,7 +2027,6 @@
                     options: { responsive: true, maintainAspectRatio: false }
                 });
                 
-                // Product Chart
                 const productSales = {};
                 this.salesData.forEach(s => {
                     productSales[s.product] = (productSales[s.product] || 0) + s.saleValue;
@@ -2318,7 +2338,6 @@
                 this.showToast('Product deleted', 'success');
             },
             
-            // Customer Management
             renderCustomers() {
                 const tbody = document.getElementById('customers-body');
                 tbody.innerHTML = this.customersData.map(c => `
@@ -2527,7 +2546,6 @@
                 this.showToast('Backup downloaded!', 'success');
             },
             
-            // User Management Functions
             updateAdminPanel() {
                 this.renderUsersTable();
             },
@@ -2546,11 +2564,11 @@
                 tbody.innerHTML = this.usersData.map(u => `
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 py-3 text-sm font-medium">${u.name}</td>
-                        <td class="px-4 py-3 text-sm">${u.email}</td>
+                        <td class="px-4 py-3 text-sm">${u.username || u.email || '-'}</td>
                         <td class="px-4 py-3 text-sm"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">${u.role}</span></td>
                         <td class="px-4 py-3 text-sm">
-                            <span class="px-2 py-1 ${u.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} rounded text-xs">
-                                ${u.active ? 'Active' : 'Inactive'}
+                            <span class="px-2 py-1 ${u.active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} rounded text-xs">
+                                ${u.active !== false ? 'Active' : 'Inactive'}
                             </span>
                         </td>
                         <td class="px-4 py-3 text-sm">
@@ -2586,7 +2604,7 @@
                 const user = {
                     id: id || 'user_' + Date.now(),
                     name: document.getElementById('userFullName').value,
-                    email: document.getElementById('userEmail').value,
+                    username: document.getElementById('userUsername').value,
                     password: document.getElementById('userPassword').value,
                     role: document.getElementById('userRole').value,
                     permissions: {
@@ -2629,7 +2647,7 @@
                 const u = this.usersData.find(user => user.id === id);
                 if(u) {
                     document.getElementById('userFullName').value = u.name;
-                    document.getElementById('userEmail').value = u.email;
+                    document.getElementById('userUsername').value = u.username || u.email || '';
                     document.getElementById('userPassword').value = u.password;
                     document.getElementById('userRole').value = u.role;
                     document.getElementById('editUserId').value = u.id;
@@ -2697,7 +2715,6 @@
                 alert(msg);
             },
             
-            // Settings Functions
             openSettingsModal() {
                 document.getElementById('settingCompanyName').value = this.systemSettings.companyName;
                 document.getElementById('settingMoshlaAddress').value = this.systemSettings.moshlaAddress;
