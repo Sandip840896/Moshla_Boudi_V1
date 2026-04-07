@@ -1279,7 +1279,7 @@
                 
                 // FIXED: Check against username (not email) and match Firebase structure
                 const user = this.usersData.find(u => 
-                    (u.username === username || u.name === username || u.email === username) && 
+                    (u.username === username || u.name === username || usersData.email === username) && 
                     u.password === pass && 
                     u.active !== false
                 );
